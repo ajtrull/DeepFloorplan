@@ -47,6 +47,28 @@ All the raw floor plan image please refer to the following two links:
 
 ## Usage
 
+### Quick web app (new)
+
+If you want an interactive app instead of running scripts manually, this repo now includes a simple Flask upload UI.
+
+1. Install dependencies:
+
+```bash
+pip install -r requirements-app.txt
+```
+
+2. Download the pretrained model and place it in `pretrained/` (same as demo instructions).
+
+3. Start the app:
+
+```bash
+python webapp.py
+```
+
+4. Open <http://127.0.0.1:5000>, upload a floor plan image, and view the predicted room/wall map.
+
+> Note: `webapp.py` uses `tensorflow.compat.v1` with the original graph/tensor names so it can run pretrained checkpoints from this repository.
+
 To use our demo code, please first download the pretrained model, find the link in "pretrained/download_links.txt" file, unzip and put it into "pretrained" folder, then run
 
 ```bash
