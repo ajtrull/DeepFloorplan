@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>X Post Mockup</title>
+  <style>
+    :root {
+      --text: #0f1419;
+      --muted: #536471;
+      --line: #eff3f4;
+      --blue: #1d9bf0;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text);
+      background: #fff;
+      display: flex;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .phone {
+      width: min(100%, 430px);
+      border-radius: 22px;
+      background: #fff;
+      border: 1px solid #e9ecef;
+      overflow: hidden;
+    }
+
+    .topbar {
+      padding: 8px 14px 2px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 18px;
+    }
+
+    .status { font-weight: 700; letter-spacing: .2px; }
+
+    .nav {
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 40px 1fr 40px;
+      align-items: center;
+      font-weight: 700;
+      font-size: 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .nav .title { text-align: center; font-size: 40px; line-height: 1; }
+
+    .content { padding: 18px 16px 8px; }
+
+    .author {
+      display: grid;
+      grid-template-columns: 72px 1fr auto;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .avatar {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #2a6f7b 0, #0b1723 70%);
+      position: relative;
+    }
+
+    .avatar::after {
+      content: "";
+      position: absolute;
+      inset: 12px 14px 8px;
+      border-radius: 50%;
+      background: linear-gradient(180deg, #f2c29b, #9b5f3d);
+      opacity: .7;
+    }
+
+    .author .name {
+      font-size: 45px;
+      font-weight: 800;
+      line-height: 1.05;
+    }
+
+    .handle {
+      color: var(--muted);
+      font-size: 43px;
+    }
+
+    .xlogo {
+      font-size: 56px;
+      font-weight: 500;
+      margin-top: -12px;
+    }
+
+    .post {
+      font-size: 54px;
+      line-height: 1.31;
+      letter-spacing: -0.2px;
+      margin: 22px 0;
+    }
+
+    .media {
+      height: 470px;
+      border-radius: 24px;
+      overflow: hidden;
+      border: 1px solid #d2d9df;
+      background:
+        linear-gradient(120deg, rgba(2, 11, 20, 0.95), rgba(12, 29, 50, 0.9)),
+        radial-gradient(circle at 60% 38%, #5e8e4f 0%, #2d4731 25%, transparent 45%),
+        radial-gradient(circle at 36% 63%, #638875 0%, #2a4538 26%, transparent 48%),
+        radial-gradient(circle at 70% 60%, #2f4f42 0%, #111d2d 60%);
+      position: relative;
+      margin-bottom: 18px;
+    }
+
+    .media::before {
+      content: "WORLDVIEW";
+      position: absolute;
+      top: 14px;
+      left: 16px;
+      color: #dff6ff;
+      letter-spacing: 6px;
+      font-size: 16px;
+      opacity: .85;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 44px;
+      margin-bottom: 14px;
+    }
+
+    .meta strong { color: var(--text); }
+
+    .actions {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      color: var(--muted);
+      font-size: 44px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .reply {
+      margin: 14px 0;
+      border-radius: 999px;
+      background: #eff3f4;
+      color: #5d6a75;
+      padding: 16px 22px;
+      font-size: 44px;
+    }
+
+    .bottom {
+      border-top: 1px solid var(--line);
+      padding: 12px 22px 16px;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      text-align: center;
+      font-size: 46px;
+    }
+
+    .blue-check {
+      color: white;
+      background: var(--blue);
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      display: inline-grid;
+      place-items: center;
+      font-size: 22px;
+      margin-left: 8px;
+      transform: translateY(-6px);
+    }
+
+    @media (max-width: 500px) {
+      .phone { border-radius: 0; border: none; }
+      .author .name { font-size: 12vw; }
+      .handle, .post, .meta, .actions, .reply, .bottom { font-size: 7vw; }
+      .nav .title { font-size: 8vw; }
+      .xlogo { font-size: 9vw; }
+    }
+  </style>
+</head>
+<body>
+  <div class="phone">
+    <div class="topbar">
+      <div class="status">10:32 ⬤</div>
+      <div>5G+ 🔋92</div>
+    </div>
+
+    <div class="nav">
+      <div>←</div>
+      <div class="title">Post</div>
+      <div style="text-align:right">⋯</div>
+    </div>
+
+    <div class="content">
+      <div class="author">
+        <div class="avatar"></div>
+        <div>
+          <div class="name">Bilawal Sidhu<span class="blue-check">✓</span></div>
+          <div class="handle">@bilawalsidhu</div>
+        </div>
+        <div class="xlogo">𝕏.com</div>
+      </div>
+
+      <div class="post">
+        Between Gemini 3.1 and Claude 4.6 it's honestly wild what you can build. This feels like Google Earth and Palantir had a baby.<br><br>
+        Made this with all the geospatial bells and whistles -- real time plane & satellite tracking, real traffic cams in Austin, and even got a traffic system working. Panoptic detection on everything.<br><br>
+        Skinned the whole thing to look like a classified intelligence system. EO, FLIR, CRT. Got a bunch more stuff on the roadmap. This is fun.
+      </div>
+
+      <div class="media"></div>
+      <div class="meta">9:27 PM · 2/19/26 · <strong>1M</strong> Views</div>
+      <div class="actions">
+        <div>💬 245</div>
+        <div>🔁 618</div>
+        <div>♡ 5.8K</div>
+        <div>🔖 5.3K</div>
+        <div>⤴︎</div>
+      </div>
+
+      <div class="reply">Post your reply</div>
+    </div>
+
+    <div class="bottom">
+      <div>⌂</div>
+      <div>◯</div>
+      <div>◍</div>
+      <div>🔔</div>
+      <div>✉</div>
+    </div>
+  </div>
+</body>
+</html>
