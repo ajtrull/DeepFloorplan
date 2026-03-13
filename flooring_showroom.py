@@ -6,6 +6,7 @@ This program provides a command line showroom workflow for:
 - estimating project cost
 - discovering partnership leads
 - tracking outreach activity with dashboard metrics
+- fetching live online source signals (RSS)
 - exporting lead records to CSV/JSON
 """
 
@@ -13,10 +14,14 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 from dataclasses import asdict, dataclass, field
 from datetime import date
 from pathlib import Path
 from typing import List
+from urllib.parse import quote_plus
+from urllib.request import Request, urlopen
+from xml.etree import ElementTree
 
 
 SOCIAL_PLATFORMS = [
@@ -42,6 +47,7 @@ OUTREACH_TARGETS = [
 LEAD_STATUSES = ["new", "contacted", "qualified", "proposal", "partnered", "archived"]
 
 LEADS_DATA_FILE = Path("data/partnership_leads.json")
+LIVE_SOURCES_FILE = Path("data/live_source_signals.json")
 EXPORT_DIR = Path("exports")
 
 
@@ -212,6 +218,129 @@ def display_partnership_resources():
     )
 
 
+def _extract_company_name(title: str) -> str:
+    cleaned = re.sub(r"\s+", " ", title).strip()
+    if not cleaned:
+        return "Unknown Company"
+    return cleaned[:60]
+
+
+def fetch_live_source_signals(limit: int = 12) -> List[dict]:
+    """Fetch real-time public source signals from RSS feeds.
+
+    Uses Google News RSS and Reddit search RSS for renovation/flooring intent.
+    """
+    queries = [
+        "flooring showroom remodeler",
+        "renovation company flooring samples",
+        "interior designer flooring materials",
+    ]
+    feeds = []
+    for q in queries:
+        feeds.append(("Google News", f"https://news.google.com/rss/search?q={quote_plus(q)}"))
+        feeds.append(("Reddit", f"https://www.reddit.com/search.rss?q={quote_plus(q)}"))
+
+    signals: List[dict] = []
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; flooring-showroom-bot/1.0)"}
+
+    for source_type, url in feeds:
+        try:
+            req = Request(url, headers=headers)
+            with urlopen(req, timeout=10) as response:
+                xml_data = response.read()
+            root = ElementTree.fromstring(xml_data)
+            channel_items = root.findall("./channel/item")
+            if not channel_items:
+                channel_items = root.findall(".//{http://www.w3.org/2005/Atom}entry")
+
+            for item in channel_items[:4]:
+                title = item.findtext("title") or item.findtext("{http://www.w3.org/2005/Atom}title")
+                link = item.findtext("link")
+                if link is None:
+                    link_node = item.find("{http://www.w3.org/2005/Atom}link")
+                    link = link_node.attrib.get("href") if link_node is not None else ""
+                pub = (
+                    item.findtext("pubDate")
+                    or item.findtext("published")
+                    or item.findtext("{http://www.w3.org/2005/Atom}published")
+                    or ""
+                )
+                if not title or not link:
+                    continue
+                signals.append(
+                    {
+                        "source": source_type,
+                        "title": title.strip(),
+                        "link": link.strip(),
+                        "published": pub.strip(),
+                        "captured_on": date.today().isoformat(),
+                    }
+                )
+                if len(signals) >= limit:
+                    return signals
+        except Exception:
+            continue
+    return signals
+
+
+def refresh_live_source_signals() -> List[dict]:
+    signals = fetch_live_source_signals(limit=12)
+    LIVE_SOURCES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    LIVE_SOURCES_FILE.write_text(json.dumps(signals, indent=2), encoding="utf-8")
+    return signals
+
+
+def show_live_source_signals():
+    signals = refresh_live_source_signals()
+    if not signals:
+        print("\nNo live signals found right now (network/feed may be unavailable).")
+        return
+
+    print(f"\nLive Source Signals ({len(signals)} found)")
+    for idx, signal in enumerate(signals, 1):
+        print(f"{idx}. [{signal['source']}] {signal['title']}")
+        print(f"    {signal['link']}")
+        if signal.get("published"):
+            print(f"    Published: {signal['published']}")
+
+
+def import_live_signals_as_leads(tracker: LeadTracker):
+    if not LIVE_SOURCES_FILE.exists():
+        print("No live signal file found. Run 'Show Live Source Signals' first.")
+        return
+
+    try:
+        signals = json.loads(LIVE_SOURCES_FILE.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        print("Could not read live signal file.")
+        return
+
+    if not signals:
+        print("No live signals available to import.")
+        return
+
+    imported = 0
+    existing_companies = {lead.company for lead in tracker.leads}
+    for signal in signals:
+        company = _extract_company_name(signal.get("title", ""))
+        if company in existing_companies:
+            continue
+        tracker.add_lead(
+            PartnershipLead(
+                company=company,
+                contact_role="unknown",
+                platform=signal.get("source", "web"),
+                city_state="unknown",
+                surface_focus="mixed",
+                notes=signal.get("link", ""),
+            )
+        )
+        existing_companies.add(company)
+        imported += 1
+
+    print(f"Imported {imported} live signals as leads.")
+
+
 def show_lead_dashboard(tracker: LeadTracker):
     summary = tracker.summary()
     print("\n=== Partnership Dashboard ===")
@@ -315,7 +444,9 @@ def main():
         print("6. Add Partnership Lead")
         print("7. Update Lead Status")
         print("8. Export Leads (CSV + JSON)")
-        print("9. Exit")
+        print("9. Refresh + Show Live Source Signals")
+        print("10. Import Live Signals as Leads")
+        print("11. Exit")
 
         choice = input("Select an option: ").strip()
         if choice == "1":
@@ -335,6 +466,10 @@ def main():
         elif choice == "8":
             export_leads(tracker)
         elif choice == "9":
+            show_live_source_signals()
+        elif choice == "10":
+            import_live_signals_as_leads(tracker)
+        elif choice == "11":
             print("Goodbye!")
             break
         else:
