@@ -9,6 +9,39 @@
 </head>
 <body class="mode-crt">
 
+  <!-- LAUNCH SCREEN -->
+  <div id="launch-screen">
+    <div id="launch-scanlines"></div>
+    <div id="launch-inner">
+      <div id="launch-logo-block">
+        <pre id="launch-ascii">
+ ██╗    ██╗ ██████╗ ██████╗ ██╗     ██████╗ ██╗   ██╗██╗███████╗██╗    ██╗
+ ██║    ██║██╔═══██╗██╔══██╗██║     ██╔══██╗██║   ██║██║██╔════╝██║    ██║
+ ██║ █╗ ██║██║   ██║██████╔╝██║     ██║  ██║██║   ██║██║█████╗  ██║ █╗ ██║
+ ██║███╗██║██║   ██║██╔══██╗██║     ██║  ██║╚██╗ ██╔╝██║██╔══╝  ██║███╗██║
+ ╚███╔███╔╝╚██████╔╝██║  ██║███████╗██████╔╝ ╚████╔╝ ██║███████╗╚███╔███╔╝
+  ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═════╝   ╚═══╝  ╚═╝╚══════╝ ╚══╝╚══╝
+        </pre>
+        <div id="launch-tagline">// PANOPTIC GEOSPATIAL INTELLIGENCE SYSTEM // v4.2.1 //</div>
+        <div id="launch-classification">ACCESS LEVEL: TS/SCI — COMPARTMENTED</div>
+      </div>
+      <div id="launch-terminal">
+        <div id="launch-lines"></div>
+        <div id="launch-cursor">_</div>
+      </div>
+      <div id="launch-progress-wrap">
+        <div id="launch-progress-label">SYSTEM INITIALIZATION</div>
+        <div id="launch-progress-track">
+          <div id="launch-progress-bar"></div>
+          <div id="launch-progress-pct">0%</div>
+        </div>
+      </div>
+      <div id="launch-enter-wrap">
+        <button id="launch-enter-btn">[ ENTER SYSTEM ]</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Visual overlays -->
   <div id="scanline-overlay"></div>
   <div id="noise-canvas-wrap"><canvas id="noise-canvas"></canvas></div>
@@ -30,6 +63,7 @@
     <div id="hud-center-info">
       <span id="mission-label">OPERATION: <span class="highlight">PANOPTICON</span></span>
       <span id="classification-badge">// CLASSIFIED //</span>
+      <button id="dashboard-btn">◈ DASHBOARD</button>
     </div>
 
     <div id="hud-top-right">
@@ -199,6 +233,137 @@
     </aside>
 
   </main>
+
+  <!-- DASHBOARD PANEL -->
+  <div id="dashboard-panel" class="hidden">
+    <div id="dashboard-header">
+      <div id="dashboard-title">
+        <span class="dash-title-icon">◈</span>
+        MISSION DASHBOARD
+        <span class="dash-subtitle">// OPERATION PANOPTICON //</span>
+      </div>
+      <button id="dashboard-close-btn">✕ CLOSE</button>
+    </div>
+    <div id="dashboard-body">
+      <!-- Column 1: Stats + API Health + System Metrics -->
+      <div class="dash-col">
+        <div class="dash-section">
+          <div class="dash-section-label">◈ TRACKING COUNTS</div>
+          <div id="dash-stats-grid">
+            <div class="dash-stat-card" data-layer="flights">
+              <div class="dash-stat-icon">✈</div>
+              <div class="dash-stat-val" id="dash-count-flights">···</div>
+              <div class="dash-stat-key">FLIGHTS</div>
+            </div>
+            <div class="dash-stat-card" data-layer="quakes">
+              <div class="dash-stat-icon">⚡</div>
+              <div class="dash-stat-val" id="dash-count-quakes">···</div>
+              <div class="dash-stat-key">QUAKES</div>
+            </div>
+            <div class="dash-stat-card" data-layer="satellites">
+              <div class="dash-stat-icon">◎</div>
+              <div class="dash-stat-val" id="dash-count-sats">···</div>
+              <div class="dash-stat-key">SATS</div>
+            </div>
+            <div class="dash-stat-card" data-layer="cctv">
+              <div class="dash-stat-icon">⊡</div>
+              <div class="dash-stat-val" id="dash-count-cctv">···</div>
+              <div class="dash-stat-key">CCTV</div>
+            </div>
+          </div>
+        </div>
+        <div class="dash-section">
+          <div class="dash-section-label">◈ DATA SOURCE HEALTH</div>
+          <div id="dash-api-health">
+            <div class="dash-api-row">
+              <div class="dash-api-dot" id="api-dot-opensky"></div>
+              <span class="dash-api-name">OpenSky Network</span>
+              <span class="dash-api-status" id="api-status-opensky">UNKNOWN</span>
+            </div>
+            <div class="dash-api-row">
+              <div class="dash-api-dot" id="api-dot-usgs"></div>
+              <span class="dash-api-name">USGS Earthquakes</span>
+              <span class="dash-api-status" id="api-status-usgs">UNKNOWN</span>
+            </div>
+            <div class="dash-api-row">
+              <div class="dash-api-dot" id="api-dot-rainviewer"></div>
+              <span class="dash-api-name">RainViewer Radar</span>
+              <span class="dash-api-status" id="api-status-rainviewer">UNKNOWN</span>
+            </div>
+            <div class="dash-api-row">
+              <div class="dash-api-dot online" id="api-dot-celestrak"></div>
+              <span class="dash-api-name">CelesTrak TLE</span>
+              <span class="dash-api-status" id="api-status-celestrak">EMBEDDED</span>
+            </div>
+          </div>
+        </div>
+        <div class="dash-section">
+          <div class="dash-section-label">◈ SYSTEM METRICS</div>
+          <div id="dash-sys-metrics">
+            <div class="dash-sys-row">
+              <span class="dash-sys-label">CPU</span>
+              <div class="dash-sys-bar"><div class="dash-sys-fill" id="dash-cpu-fill"></div></div>
+              <span class="dash-sys-pct" id="dash-cpu-pct">--</span>
+            </div>
+            <div class="dash-sys-row">
+              <span class="dash-sys-label">NET</span>
+              <div class="dash-sys-bar"><div class="dash-sys-fill" id="dash-net-fill"></div></div>
+              <span class="dash-sys-pct" id="dash-net-pct">--</span>
+            </div>
+            <div class="dash-sys-row">
+              <span class="dash-sys-label">MEM</span>
+              <div class="dash-sys-bar"><div class="dash-sys-fill" id="dash-mem-fill"></div></div>
+              <span class="dash-sys-pct" id="dash-mem-pct">--</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Column 2: Layer Controls + Presets + View Mode -->
+      <div class="dash-col">
+        <div class="dash-section">
+          <div class="dash-section-label">◈ LAYER CONTROLS</div>
+          <div id="dash-layer-btns"></div>
+        </div>
+        <div class="dash-section">
+          <div class="dash-section-label">◈ SURVEILLANCE PRESETS</div>
+          <div id="dash-preset-btns">
+            <button class="dash-preset-btn" data-preset="minimal">
+              <span class="preset-icon">✈</span>
+              <div>
+                <span class="preset-label">MINIMAL</span>
+                <span class="preset-desc">Flights only</span>
+              </div>
+            </button>
+            <button class="dash-preset-btn" data-preset="full">
+              <span class="preset-icon">◉</span>
+              <div>
+                <span class="preset-label">FULL SURVEILLANCE</span>
+                <span class="preset-desc">All layers active</span>
+              </div>
+            </button>
+            <button class="dash-preset-btn" data-preset="threat">
+              <span class="preset-icon">⚠</span>
+              <div>
+                <span class="preset-label">THREAT MONITOR</span>
+                <span class="preset-desc">Quakes + CCTV + Traffic</span>
+              </div>
+            </button>
+          </div>
+        </div>
+        <div class="dash-section">
+          <div class="dash-section-label">◈ VIEW MODE</div>
+          <div id="dash-view-mode-btns"></div>
+        </div>
+      </div>
+      <!-- Column 3: Activity Feed -->
+      <div class="dash-col">
+        <div class="dash-section dash-section-feed">
+          <div class="dash-section-label">◈ ACTIVITY FEED</div>
+          <div id="dash-feed"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- BOTTOM BAR -->
   <footer id="bottom-bar">

@@ -127,13 +127,29 @@ class WorldView {
     this.intervals = [];
     this.weatherLayer = null;
     this.noiseAnimId = null;
+    this.activityFeed = [];
+    this.apiStatus = {
+      opensky:    'unknown',
+      usgs:       'unknown',
+      rainviewer: 'unknown',
+      celestrak:  'online',
+    };
+    this.launchDone = false;
   }
 
   /* ── Entry point ── */
   init() {
+    this.runLaunchSequence().then(() => this.initApp());
+    console.log('[WORLDVIEW] Boot sequence started.');
+  }
+
+  initApp() {
+    this.dismissLaunchScreen();
     this.initMap();
     this.buildLayerUI();
     this.buildViewModeUI();
+    this.buildDashboardLayerBtns();
+    this.buildDashboardViewModeBtns();
     this.initNoise();
     this.initDistortionChart();
     this.initCompass();
@@ -141,7 +157,93 @@ class WorldView {
     this.loadAllLayers();
     this.scheduleRefreshes();
     this.bindEvents();
+    this.bindDashboardEvents();
+    this.syncDashboardMetrics();
     console.log('[WORLDVIEW] System online.');
+  }
+
+  /* ── Launch screen sequence ── */
+  runLaunchSequence() {
+    return new Promise(resolve => {
+      const BOOT_LINES = [
+        { text: 'BIOS v4.2.1 PANOPTICON EDITION — POST COMPLETE',         cls: 'dim-line',   delay: 0    },
+        { text: 'INITIALIZING PANOPTICON SUBSYSTEM...',                    cls: '',           delay: 400  },
+        { text: 'ESTABLISHING SATELLITE UPLINK — KU BAND 14.5 GHz...',    cls: '',           delay: 900  },
+        { text: 'AUTHENTICATING OPERATOR CREDENTIALS...',                  cls: '',           delay: 1400 },
+        { text: 'ACCESS LEVEL: TS/SCI COMPARTMENTED — GRANTED',           cls: 'alert-line', delay: 1900 },
+        { text: 'LOADING GEOSPATIAL ENGINE — LEAFLET v1.9.4...',          cls: '',           delay: 2400 },
+        { text: 'LINKING OPENSKY NETWORK — ADS-B TRANSPONDER ARRAY...',   cls: '',           delay: 2900 },
+        { text: 'QUERYING USGS SEISMIC SENSOR NETWORK...',                cls: '',           delay: 3300 },
+        { text: 'LOADING THREAT DATABASE — 0-DAY INDEX NOMINAL...',       cls: 'warn-line',  delay: 3700 },
+        { text: 'CCTV MESH SYNCHRONIZATION — 12 NODES DETECTED...',      cls: '',           delay: 4100 },
+        { text: 'WEATHER RADAR TILES — RAINVIEWER API READY...',          cls: '',           delay: 4500 },
+        { text: 'SATELLITE PROPAGATION ENGINE (satellite.js) ONLINE...',  cls: '',           delay: 4800 },
+        { text: 'PANOPTIC DETECTION: ACTIVE',                             cls: 'alert-line', delay: 5100 },
+        { text: '>>> WORLDVIEW GEOSPATIAL INTELLIGENCE SYSTEM READY <<<', cls: '',           delay: 5400 },
+      ];
+
+      const linesContainer = document.getElementById('launch-lines');
+      const progressBar    = document.getElementById('launch-progress-bar');
+      const progressPct    = document.getElementById('launch-progress-pct');
+      const enterWrap      = document.getElementById('launch-enter-wrap');
+      const enterBtn       = document.getElementById('launch-enter-btn');
+      const terminal       = document.getElementById('launch-terminal');
+
+      const total = BOOT_LINES.length;
+      let autoTimer = null;
+
+      const typeLine = (text, cls, onDone) => {
+        const div = document.createElement('div');
+        div.className = `launch-line${cls ? ' ' + cls : ''}`;
+        linesContainer.appendChild(div);
+
+        let i = 0;
+        const charDelay = Math.max(12, 28 - text.length * 0.1);
+
+        const typeNext = () => {
+          if (i < text.length) {
+            div.textContent = text.slice(0, ++i);
+            setTimeout(typeNext, charDelay);
+          } else {
+            if (onDone) onDone();
+          }
+        };
+        typeNext();
+      };
+
+      BOOT_LINES.forEach((item, idx) => {
+        setTimeout(() => {
+          const pct = Math.round(((idx + 1) / total) * 100);
+          typeLine(item.text, item.cls, () => {
+            progressBar.style.width = pct + '%';
+            progressPct.textContent = pct + '%';
+            terminal.scrollTop = terminal.scrollHeight;
+          });
+        }, item.delay);
+      });
+
+      const lastDelay = BOOT_LINES[BOOT_LINES.length - 1].delay + 700;
+      setTimeout(() => {
+        enterWrap.classList.add('visible');
+        autoTimer = setTimeout(() => dismiss(), 5500);
+      }, lastDelay);
+
+      const dismiss = () => {
+        if (autoTimer) clearTimeout(autoTimer);
+        this.dismissLaunchScreen();
+        resolve();
+      };
+
+      enterBtn.addEventListener('click', dismiss, { once: true });
+    });
+  }
+
+  dismissLaunchScreen() {
+    if (this.launchDone) return;
+    this.launchDone = true;
+    const screen = document.getElementById('launch-screen');
+    screen.classList.add('fade-out');
+    setTimeout(() => screen.classList.add('hidden'), 850);
   }
 
   /* ── Map ── */
@@ -238,6 +340,10 @@ class WorldView {
       if (layer.active) this.loadWeatherLayer();
       else if (this.weatherLayer) { this.map.removeLayer(this.weatherLayer); this.weatherLayer = null; }
     }
+
+    // Sync dashboard layer button
+    const dashBtn = document.querySelector(`.dash-layer-btn[data-id="${id}"]`);
+    if (dashBtn) dashBtn.classList.toggle('active', layer.active);
   }
 
   /* ── View Mode UI ── */
@@ -266,6 +372,11 @@ class WorldView {
 
     // Update badge
     document.getElementById('mode-badge-display').textContent = vm?.label.toUpperCase() || 'FULL';
+
+    // Sync dashboard view mode buttons
+    document.querySelectorAll('.dash-vm-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.id === id);
+    });
   }
 
   /* ── Clock ── */
@@ -319,10 +430,14 @@ class WorldView {
       if (!response.ok) throw new Error('API error');
       const json = await response.json();
       this.renderFlights(json.states || []);
+      this.setApiStatus('opensky', 'online');
+      this.pushFeedEvent('flight', `Flight data refreshed — <strong>${this.counts.flights}</strong> airborne`);
     } catch (err) {
       // Fallback: generate mock flights if API fails
       console.warn('[WORLDVIEW] OpenSky API unavailable, using mock data:', err.message);
       this.renderFlights(this.generateMockFlights());
+      this.setApiStatus('opensky', 'offline');
+      this.pushFeedEvent('flight', `Flight data refreshed — <strong>${this.counts.flights}</strong> airborne (mock)`);
     }
 
     const now = new Date();
@@ -417,9 +532,11 @@ class WorldView {
       );
       const json = await r.json();
       this.renderEarthquakes(json.features || []);
+      this.setApiStatus('usgs', 'online');
     } catch (err) {
       console.warn('[WORLDVIEW] USGS unavailable:', err.message);
       this.renderEarthquakes(this.generateMockQuakes());
+      this.setApiStatus('usgs', 'offline');
     }
   }
 
@@ -480,11 +597,14 @@ class WorldView {
     document.getElementById('lc-quakes').textContent = `${count} events`;
     document.getElementById('data-count').textContent = `TRACKING ${this.getTotalCount()} OBJECTS`;
 
+    this.pushFeedEvent('quake', `Seismic feed updated — <strong>${count} events</strong> detected`);
+
     // Update alert panel if high-magnitude quakes exist
     const bigOnes = features.filter(f => f.properties.mag >= 5);
     if (bigOnes.length) {
       document.querySelector('.pulse-alert').textContent =
         `◉ M${bigOnes[0].properties.mag.toFixed(1)} QUAKE DETECTED`;
+      this.pushFeedEvent('quake', `<strong>M${bigOnes[0].properties.mag.toFixed(1)} QUAKE</strong> — ${bigOnes[0].properties.place || 'Unknown region'}`);
     }
   }
 
@@ -647,8 +767,10 @@ class WorldView {
       if (this.layers.weather?.active) {
         this.weatherLayer.addTo(this.map);
       }
+      this.setApiStatus('rainviewer', 'online');
     } catch (err) {
       console.warn('[WORLDVIEW] RainViewer unavailable:', err.message);
+      this.setApiStatus('rainviewer', 'offline');
     }
   }
 
@@ -658,6 +780,18 @@ class WorldView {
     document.getElementById('stat-quakes').textContent  = this.counts.quakes.toString();
     document.getElementById('stat-sats').textContent    = this.counts.sats.toString();
     document.getElementById('stat-cctv').textContent    = this.counts.cctv.toString();
+
+    // Mirror to dashboard
+    const fields = [
+      ['dash-count-flights', this.counts.flights],
+      ['dash-count-quakes',  this.counts.quakes],
+      ['dash-count-sats',    this.counts.sats],
+      ['dash-count-cctv',    this.counts.cctv],
+    ];
+    fields.forEach(([id, val]) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val.toString();
+    });
   }
 
   getTotalCount() {
@@ -888,7 +1022,189 @@ class WorldView {
           if (span) span.textContent = next.toFixed(0) + '%';
         }
       });
+      this.syncDashboardMetrics();
     }, 3000));
+  }
+}
+
+  /* ── Dashboard: build layer toggle buttons ── */
+  buildDashboardLayerBtns() {
+    const container = document.getElementById('dash-layer-btns');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const countMap = {
+      flights:    this.counts.flights,
+      quakes:     this.counts.quakes,
+      satellites: this.counts.sats,
+      cctv:       this.counts.cctv,
+      traffic:    TRAFFIC_ZONES.length,
+      weather:    '--',
+    };
+
+    LAYER_DEFS.forEach(def => {
+      const btn = document.createElement('button');
+      const isActive = this.layers[def.id]?.active ?? def.active;
+      btn.className = `dash-layer-btn${isActive ? ' active' : ''}`;
+      btn.dataset.id = def.id;
+      btn.style.color = def.color;
+      btn.innerHTML = `
+        <span class="dlb-icon">${def.icon}</span>
+        <span class="dlb-name">${def.name.toUpperCase()}</span>
+        <span class="dlb-count" id="dlb-count-${def.id}">${countMap[def.id] ?? '--'}</span>
+        <span class="dlb-indicator"></span>
+      `;
+      btn.addEventListener('click', () => {
+        this.toggleLayer(def.id);
+        btn.classList.toggle('active', this.layers[def.id].active);
+      });
+      container.appendChild(btn);
+    });
+  }
+
+  /* ── Dashboard: build view mode buttons ── */
+  buildDashboardViewModeBtns() {
+    const container = document.getElementById('dash-view-mode-btns');
+    if (!container) return;
+    container.innerHTML = '';
+
+    VIEW_MODES.forEach(vm => {
+      const btn = document.createElement('button');
+      btn.className = `dash-vm-btn${vm.id === this.viewMode ? ' active' : ''}`;
+      btn.dataset.id = vm.id;
+      btn.textContent = vm.label.toUpperCase();
+      btn.addEventListener('click', () => {
+        this.setViewMode(vm.id);
+      });
+      container.appendChild(btn);
+    });
+  }
+
+  /* ── Dashboard: bind open/close/preset events ── */
+  bindDashboardEvents() {
+    const panel    = document.getElementById('dashboard-panel');
+    const openBtn  = document.getElementById('dashboard-btn');
+    const closeBtn = document.getElementById('dashboard-close-btn');
+
+    const openDashboard = () => {
+      panel.classList.remove('hidden');
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          panel.classList.add('open');
+          openBtn.classList.add('active');
+          this.syncDashboardMetrics();
+          this.renderFeed();
+        });
+      });
+    };
+
+    const closeDashboard = () => {
+      panel.classList.remove('open');
+      openBtn.classList.remove('active');
+      setTimeout(() => panel.classList.add('hidden'), 360);
+    };
+
+    openBtn.addEventListener('click', openDashboard);
+    closeBtn.addEventListener('click', closeDashboard);
+
+    // Preset buttons
+    document.querySelectorAll('.dash-preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.applyPreset(btn.dataset.preset);
+        closeDashboard();
+      });
+    });
+
+    // Stat cards: clicking toggles that layer
+    document.querySelectorAll('.dash-stat-card[data-layer]').forEach(card => {
+      card.addEventListener('click', () => {
+        this.toggleLayer(card.dataset.layer);
+        this.buildDashboardLayerBtns();
+      });
+    });
+
+    // Escape key closes dashboard
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && panel.classList.contains('open')) {
+        closeDashboard();
+      }
+    });
+  }
+
+  /* ── Dashboard: apply surveillance preset ── */
+  applyPreset(preset) {
+    const configs = {
+      minimal: { flights:true,  quakes:false, satellites:false, traffic:false, weather:false, cctv:false },
+      full:    { flights:true,  quakes:true,  satellites:true,  traffic:true,  weather:true,  cctv:true  },
+      threat:  { flights:false, quakes:true,  satellites:false, traffic:true,  weather:false, cctv:true  },
+    };
+    const config = configs[preset];
+    if (!config) return;
+
+    Object.entries(config).forEach(([id, shouldBeActive]) => {
+      const layer = this.layers[id];
+      if (!layer) return;
+      if (layer.active !== shouldBeActive) this.toggleLayer(id);
+    });
+
+    this.buildDashboardLayerBtns();
+    this.pushFeedEvent('system', `Preset applied: <strong>${preset.toUpperCase()}</strong>`);
+  }
+
+  /* ── Dashboard: sync system metric bars ── */
+  syncDashboardMetrics() {
+    const sideFills  = document.querySelectorAll('#left-sidebar .sys-fill');
+    const dashFillIds = ['dash-cpu-fill', 'dash-net-fill', 'dash-mem-fill'];
+    const dashPctIds  = ['dash-cpu-pct',  'dash-net-pct',  'dash-mem-pct'];
+
+    sideFills.forEach((fill, i) => {
+      const pct = fill.style.width || '0%';
+      const dashFill = document.getElementById(dashFillIds[i]);
+      const dashPct  = document.getElementById(dashPctIds[i]);
+      if (dashFill) dashFill.style.width = pct;
+      if (dashPct)  dashPct.textContent  = pct;
+    });
+  }
+
+  /* ── Dashboard: set API status indicator ── */
+  setApiStatus(api, status) {
+    this.apiStatus[api] = status;
+    const dot = document.getElementById(`api-dot-${api}`);
+    const lbl = document.getElementById(`api-status-${api}`);
+    if (!dot) return;
+    dot.className = `dash-api-dot ${status}`;
+    if (lbl) lbl.textContent = status.toUpperCase();
+  }
+
+  /* ── Dashboard: activity feed ── */
+  pushFeedEvent(type, html) {
+    const now = new Date();
+    const hh = String(now.getUTCHours()).padStart(2,'0');
+    const mm = String(now.getUTCMinutes()).padStart(2,'0');
+    const ss = String(now.getUTCSeconds()).padStart(2,'0');
+    const time = `${hh}:${mm}:${ss}`;
+
+    this.activityFeed.unshift({ type, html, time });
+    if (this.activityFeed.length > 10) this.activityFeed.length = 10;
+
+    this.renderFeed();
+  }
+
+  renderFeed() {
+    const feed = document.getElementById('dash-feed');
+    if (!feed) return;
+    feed.innerHTML = '';
+    const icons = { flight:'✈', quake:'⚡', sat:'◎', system:'◈' };
+    this.activityFeed.forEach(item => {
+      const div = document.createElement('div');
+      div.className = `dash-feed-item feed-${item.type}`;
+      div.innerHTML = `
+        <span class="feed-icon">${icons[item.type] || '◉'}</span>
+        <span class="feed-text">${item.html}</span>
+        <span class="feed-time">${item.time}</span>
+      `;
+      feed.appendChild(div);
+    });
   }
 }
 
